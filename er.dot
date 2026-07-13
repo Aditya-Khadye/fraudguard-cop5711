@@ -1,0 +1,76 @@
+digraph ER {
+  graph [rankdir=LR, splines=spline, nodesep=0.5, ranksep=1.1, bgcolor=transparent, pad=0.2];
+  node  [shape=plaintext, fontname="Helvetica"];
+  edge  [fontname="Helvetica", fontsize=11, color="#555555", dir=both, penwidth=1.1];
+
+  CUSTOMER [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5">
+      <tr><td bgcolor="#1F3A5F" colspan="2"><font color="white"><b>CUSTOMER</b></font></td></tr>
+      <tr><td align="left"><b>customer_id</b></td><td align="left">PK</td></tr>
+      <tr><td align="left">age</td><td align="left"></td></tr>
+      <tr><td align="left">gender</td><td align="left"></td></tr>
+      <tr><td align="left">city / state / zip</td><td align="left"></td></tr>
+      <tr><td align="left">latitude / longitude</td><td align="left"></td></tr>
+      <tr><td align="left">yearly_income</td><td align="left"></td></tr>
+      <tr><td align="left">fico_score</td><td align="left"></td></tr>
+    </table>>];
+
+  CARD [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5">
+      <tr><td bgcolor="#1F3A5F" colspan="2"><font color="white"><b>CARD</b></font></td></tr>
+      <tr><td align="left"><b>card_id</b></td><td align="left">PK</td></tr>
+      <tr><td align="left"><i>customer_id</i></td><td align="left">FK</td></tr>
+      <tr><td align="left">card_brand</td><td align="left"></td></tr>
+      <tr><td align="left">card_type</td><td align="left"></td></tr>
+      <tr><td align="left">card_number_masked</td><td align="left"></td></tr>
+      <tr><td align="left">credit_limit</td><td align="left"></td></tr>
+      <tr><td align="left">expires / has_chip</td><td align="left"></td></tr>
+    </table>>];
+
+  TRANSACTION [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5">
+      <tr><td bgcolor="#A6192E" colspan="2"><font color="white"><b>TRANSACTION</b></font></td></tr>
+      <tr><td align="left"><b>transaction_id</b></td><td align="left">PK</td></tr>
+      <tr><td align="left"><i>card_id</i></td><td align="left">FK</td></tr>
+      <tr><td align="left"><i>merchant_id</i></td><td align="left">FK</td></tr>
+      <tr><td align="left">txn_timestamp</td><td align="left"></td></tr>
+      <tr><td align="left">amount</td><td align="left"></td></tr>
+      <tr><td align="left">use_chip</td><td align="left"></td></tr>
+      <tr><td align="left">is_fraud</td><td align="left"></td></tr>
+      <tr><td align="left">error_flag</td><td align="left"></td></tr>
+    </table>>];
+
+  MERCHANT [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5">
+      <tr><td bgcolor="#1F3A5F" colspan="2"><font color="white"><b>MERCHANT</b></font></td></tr>
+      <tr><td align="left"><b>merchant_id</b></td><td align="left">PK</td></tr>
+      <tr><td align="left"><i>mcc</i></td><td align="left">FK</td></tr>
+      <tr><td align="left">merchant_name</td><td align="left"></td></tr>
+      <tr><td align="left">merchant_city</td><td align="left"></td></tr>
+      <tr><td align="left">merchant_state</td><td align="left"></td></tr>
+      <tr><td align="left">zip</td><td align="left"></td></tr>
+    </table>>];
+
+  MCAT [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5">
+      <tr><td bgcolor="#1F3A5F" colspan="2"><font color="white"><b>MERCHANT_CATEGORY</b></font></td></tr>
+      <tr><td align="left"><b>mcc</b></td><td align="left">PK</td></tr>
+      <tr><td align="left">category_description</td><td align="left"></td></tr>
+    </table>>];
+
+  ALERT [label=<
+    <table border="0" cellborder="1" cellspacing="0" cellpadding="5">
+      <tr><td bgcolor="#A6192E" colspan="2"><font color="white"><b>FRAUD_ALERT</b></font></td></tr>
+      <tr><td align="left"><b>alert_id</b></td><td align="left">PK</td></tr>
+      <tr><td align="left"><i>transaction_id</i></td><td align="left">FK</td></tr>
+      <tr><td align="left">alert_status</td><td align="left"></td></tr>
+      <tr><td align="left">reviewed_by</td><td align="left"></td></tr>
+      <tr><td align="left">created_at</td><td align="left"></td></tr>
+    </table>>];
+
+  CUSTOMER -> CARD        [arrowtail=tee, arrowhead=crow, label="owns"];
+  CARD     -> TRANSACTION [arrowtail=tee, arrowhead=crow, label="used in"];
+  MERCHANT -> TRANSACTION [arrowtail=tee, arrowhead=crow, label="receives"];
+  MCAT     -> MERCHANT    [arrowtail=tee, arrowhead=crow, label="classifies"];
+  TRANSACTION -> ALERT    [arrowtail=tee, arrowhead=teeodot, label="flags"];
+}
