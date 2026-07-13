@@ -1,5 +1,5 @@
 digraph ER {
-  graph [rankdir=LR, splines=spline, nodesep=0.5, ranksep=1.1, bgcolor=transparent, pad=0.2];
+  graph [rankdir=LR, splines=spline, nodesep=0.5, ranksep=1.1, bgcolor="white", pad=0.2];
   node  [shape=plaintext, fontname="Helvetica"];
   edge  [fontname="Helvetica", fontsize=11, color="#555555", dir=both, penwidth=1.1];
 
