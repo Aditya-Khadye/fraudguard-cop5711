@@ -2,64 +2,124 @@
 <html>
 <head>
 <title>FraudGuard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  body { font-family: Arial, sans-serif; margin: 30px; color: #222; }
-  h1 { color: #1F3A5F; }
-  h2 { margin-top: 32px; }
-  table { border-collapse: collapse; margin-top: 8px; }
-  th, td { border: 1px solid #ccc; padding: 6px 10px; font-size: 14px; }
-  th { background: #1F3A5F; color: white; }
-  tr:nth-child(even) { background: #f4f6f8; }
-  .fraud { color: #A6192E; font-weight: bold; }
-  .status-OPEN { color: #A6192E; font-weight: bold; }
-  .status-CONFIRMED { color: #1F3A5F; }
-  .status-DISMISSED { color: #777; }
-  form.inline { display: inline; }
-  button { padding: 3px 8px; cursor: pointer; }
+  :root {
+    --navy: #1F3A5F; --red: #A6192E; --bg: #F2F4F7;
+    --ink: #2A2E35; --muted: #6B7280; --line: #E3E7EC;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Arial, sans-serif; background: var(--bg);
+         color: var(--ink); margin: 0; }
+  .num { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; }
+
+  header { background: var(--navy); color: white; padding: 18px 32px; }
+  header h1 { margin: 0; font-size: 20px; letter-spacing: 0.5px; }
+  header p { margin: 4px 0 0; font-size: 13px; color: #B9C4D4; }
+
+  main { max-width: 1000px; margin: 0 auto; padding: 24px 32px 48px; }
+
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .card { background: white; border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+  .card .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
+  .card .value { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 26px; margin-top: 6px; }
+  .card.alert .value { color: var(--red); }
+
+  section { background: white; border: 1px solid var(--line); border-radius: 8px;
+            margin-top: 22px; padding: 18px 20px; }
+  section h2 { margin: 0 0 2px; font-size: 15px; color: var(--navy); }
+  section .sub { margin: 0 0 12px; font-size: 12.5px; color: var(--muted); }
+
+  table { border-collapse: collapse; width: 100%; }
+  th { text-align: left; font-size: 11.5px; color: var(--muted); text-transform: uppercase;
+       letter-spacing: 0.5px; padding: 6px 10px; border-bottom: 2px solid var(--line); }
+  td { padding: 7px 10px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  tr:last-child td { border-bottom: none; }
+  td.r, th.r { text-align: right; }
+
+  .bar { display: inline-block; vertical-align: middle; height: 8px; width: 60px;
+         background: var(--line); border-radius: 4px; overflow: hidden; margin-right: 8px; }
+  .bar i { display: block; height: 100%; background: var(--red); }
+
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 11.5px; font-weight: 600; }
+  .pill.OPEN      { background: #FBEAEC; color: var(--red); }
+  .pill.CONFIRMED { background: #E8EDF5; color: var(--navy); }
+  .pill.DISMISSED { background: #EEF0F2; color: var(--muted); }
+
+  tr.open td { background: #FDF7F8; }
+  tr.open td:first-child { border-left: 3px solid var(--red); }
+
+  button { padding: 4px 12px; border-radius: 6px; border: 1px solid var(--line);
+           background: white; cursor: pointer; font-size: 12.5px; }
+  button.confirm { border-color: var(--red); color: var(--red); }
+  button.confirm:hover { background: var(--red); color: white; }
+  button.dismiss:hover { background: var(--line); }
+
+  @media (max-width: 720px) { .cards { grid-template-columns: repeat(2, 1fr); } main { padding: 16px; } }
 </style>
 </head>
 <body>
-<h1>FraudGuard</h1>
-<p>Monthly fraud summary + alert review queue. Data lives in PostgreSQL, alerts are opened by a trigger, reviews go through the review_alert() stored procedure.</p>
+<header>
+  <h1>FraudGuard</h1>
+  <p>Card transaction monitoring &middot; alerts open automatically by trigger, reviews run through the review_alert() stored procedure</p>
+</header>
+<main>
 
-<h2>Monthly summary (latest)</h2>
-<table>
-  <tr><th>Month</th><th>State</th><th>Txns</th><th>Total $</th><th>Fraud #</th><th>Fraud %</th></tr>
-  {% for r in monthly %}
-  <tr>
-    <td>{{ r.month.strftime('%Y-%m') }}</td>
-    <td>{{ r.merchant_state }}</td>
-    <td>{{ r.txn_count }}</td>
-    <td>{{ '%.2f' % r.total_amount }}</td>
-    <td class="{{ 'fraud' if r.fraud_count else '' }}">{{ r.fraud_count }}</td>
-    <td>{{ r.fraud_pct }}</td>
-  </tr>
-  {% endfor %}
-</table>
+<div class="cards">
+  <div class="card"><div class="label">Transactions</div><div class="value">{{ stats.txns }}</div></div>
+  <div class="card"><div class="label">Net volume</div><div class="value">${{ '{:,.0f}'.format(stats.volume) }}</div></div>
+  <div class="card alert"><div class="label">Fraud cases</div><div class="value">{{ stats.fraud }} <span style="font-size:14px">({{ stats.fraud_pct }}%)</span></div></div>
+  <div class="card alert"><div class="label">Open alerts</div><div class="value">{{ stats.open_alerts }}</div></div>
+</div>
 
-<h2>Fraud alerts</h2>
-<table>
-  <tr><th>Alert</th><th>Status</th><th>When</th><th>Amount</th><th>Merchant</th><th>State</th><th>Customer</th><th>Review</th></tr>
-  {% for a in alerts %}
-  <tr>
-    <td>{{ a.alert_id }}</td>
-    <td class="status-{{ a.alert_status }}">{{ a.alert_status }}</td>
-    <td>{{ a.txn_timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
-    <td>{{ '%.2f' % a.amount }}</td>
-    <td>{{ a.merchant_name }}</td>
-    <td>{{ a.merchant_state }}</td>
-    <td>{{ a.customer_id }}</td>
-    <td>
-      {% if a.alert_status == 'OPEN' %}
-      <form class="inline" method="post" action="/alerts/{{ a.alert_id }}/review">
-        <input type="hidden" name="reviewer" value="analyst_1">
-        <button name="decision" value="CONFIRMED">confirm</button>
-        <button name="decision" value="DISMISSED">dismiss</button>
-      </form>
-      {% endif %}
-    </td>
-  </tr>
-  {% endfor %}
-</table>
+<section>
+  <h2>Monthly summary by state</h2>
+  <p class="sub">Latest months first. The bar shows the share of that state's transactions flagged as fraud.</p>
+  <table>
+    <tr><th>Month</th><th>State</th><th class="r">Txns</th><th class="r">Volume</th><th>Fraud rate</th></tr>
+    {% for r in monthly %}
+    <tr>
+      <td class="num">{{ r.month.strftime('%Y-%m') }}</td>
+      <td>{{ r.merchant_state }}</td>
+      <td class="r num">{{ r.txn_count }}</td>
+      <td class="r num">${{ '{:,.2f}'.format(r.total_amount) }}</td>
+      <td>
+        <span class="bar"><i style="width: {{ r.fraud_pct }}%"></i></span>
+        <span class="num">{{ r.fraud_pct }}%{% if r.fraud_count %} &middot; {{ r.fraud_count }} case{{ 's' if r.fraud_count > 1 }}{% endif %}</span>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</section>
+
+<section>
+  <h2>Alert queue</h2>
+  <p class="sub">Open alerts need a decision. Confirm marks the transaction as verified fraud, dismiss clears it as a false positive.</p>
+  <table>
+    <tr><th>#</th><th>Status</th><th>When</th><th class="r">Amount</th><th>Merchant</th><th>State</th><th>Customer</th><th>Decision</th></tr>
+    {% for a in alerts %}
+    <tr class="{{ 'open' if a.alert_status == 'OPEN' }}">
+      <td class="num">{{ a.alert_id }}</td>
+      <td><span class="pill {{ a.alert_status }}">{{ a.alert_status }}</span></td>
+      <td class="num">{{ a.txn_timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td class="r num">${{ '{:,.2f}'.format(a.amount) }}</td>
+      <td>{{ a.merchant_name }}</td>
+      <td>{{ a.merchant_state }}</td>
+      <td class="num">{{ a.customer_id }}</td>
+      <td>
+        {% if a.alert_status == 'OPEN' %}
+        <form style="display:inline" method="post" action="/alerts/{{ a.alert_id }}/review">
+          <input type="hidden" name="reviewer" value="analyst_1">
+          <button class="confirm" name="decision" value="CONFIRMED">Confirm fraud</button>
+          <button class="dismiss" name="decision" value="DISMISSED">Dismiss</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</section>
+
+</main>
 </body>
 </html>

@@ -21,6 +21,14 @@ def query(sql, params=None):
 
 @app.route("/")
 def dashboard():
+    stats = query("""
+        SELECT COUNT(*) AS txns,
+               COUNT(*) FILTER (WHERE is_fraud) AS fraud,
+               ROUND(100.0 * COUNT(*) FILTER (WHERE is_fraud) / COUNT(*), 1) AS fraud_pct,
+               SUM(amount) AS volume,
+               (SELECT COUNT(*) FROM fraud_alert WHERE alert_status = 'OPEN') AS open_alerts
+        FROM transaction
+    """)[0]
     monthly = query("""
         SELECT month, merchant_state, txn_count, total_amount, fraud_count, fraud_pct
         FROM v_monthly_fraud_summary
@@ -37,7 +45,7 @@ def dashboard():
         JOIN customer c ON c.customer_id = cd.customer_id
         ORDER BY (a.alert_status = 'OPEN') DESC, a.created_at DESC
     """)
-    return render_template("index.html", monthly=monthly, alerts=alerts)
+    return render_template("index.html", stats=stats, monthly=monthly, alerts=alerts)
 
 
 # backend api endpoint (json), same data the page uses
