@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+<title>FraudGuard</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 30px; color: #222; }
+  h1 { color: #1F3A5F; }
+  h2 { margin-top: 32px; }
+  table { border-collapse: collapse; margin-top: 8px; }
+  th, td { border: 1px solid #ccc; padding: 6px 10px; font-size: 14px; }
+  th { background: #1F3A5F; color: white; }
+  tr:nth-child(even) { background: #f4f6f8; }
+  .fraud { color: #A6192E; font-weight: bold; }
+  .status-OPEN { color: #A6192E; font-weight: bold; }
+  .status-CONFIRMED { color: #1F3A5F; }
+  .status-DISMISSED { color: #777; }
+  form.inline { display: inline; }
+  button { padding: 3px 8px; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>FraudGuard</h1>
+<p>Monthly fraud summary + alert review queue. Data lives in PostgreSQL, alerts are opened by a trigger, reviews go through the review_alert() stored procedure.</p>
+
+<h2>Monthly summary (latest)</h2>
+<table>
+  <tr><th>Month</th><th>State</th><th>Txns</th><th>Total $</th><th>Fraud #</th><th>Fraud %</th></tr>
+  {% for r in monthly %}
+  <tr>
+    <td>{{ r.month.strftime('%Y-%m') }}</td>
+    <td>{{ r.merchant_state }}</td>
+    <td>{{ r.txn_count }}</td>
+    <td>{{ '%.2f' % r.total_amount }}</td>
+    <td class="{{ 'fraud' if r.fraud_count else '' }}">{{ r.fraud_count }}</td>
+    <td>{{ r.fraud_pct }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<h2>Fraud alerts</h2>
+<table>
+  <tr><th>Alert</th><th>Status</th><th>When</th><th>Amount</th><th>Merchant</th><th>State</th><th>Customer</th><th>Review</th></tr>
+  {% for a in alerts %}
+  <tr>
+    <td>{{ a.alert_id }}</td>
+    <td class="status-{{ a.alert_status }}">{{ a.alert_status }}</td>
+    <td>{{ a.txn_timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+    <td>{{ '%.2f' % a.amount }}</td>
+    <td>{{ a.merchant_name }}</td>
+    <td>{{ a.merchant_state }}</td>
+    <td>{{ a.customer_id }}</td>
+    <td>
+      {% if a.alert_status == 'OPEN' %}
+      <form class="inline" method="post" action="/alerts/{{ a.alert_id }}/review">
+        <input type="hidden" name="reviewer" value="analyst_1">
+        <button name="decision" value="CONFIRMED">confirm</button>
+        <button name="decision" value="DISMISSED">dismiss</button>
+      </form>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+</body>
+</html>
