@@ -11,7 +11,7 @@ createdb fraudguard
 psql -d fraudguard -f sql/01_schema.sql -f sql/02_seed_data.sql
 ```
 
-That's the graded deliverable path: constraints go in first (PK/FK/NOT NULL/UNIQUE/CHECK), then ~100+ rows per table inserted with plain INSERT queries. The schema also has a trigger that auto-opens a fraud_alert whenever a transaction comes in flagged as fraud, a review_alert() stored procedure for the analyst workflow, and a v_monthly_fraud_summary view for report queries.
+That's the graded deliverable path: constraints go in first (PK/FK/NOT NULL/UNIQUE/CHECK), then seed data inserted with plain INSERT queries (~100 rows in each dimension table, 2k transactions so the analytical queries have something to chew on). The schema also has a trigger that auto-opens a fraud_alert whenever a transaction comes in flagged as fraud, a review_alert() stored procedure for the analyst workflow, and a v_monthly_fraud_summary view for report queries.
 
 ## App (frontend + backend)
 
@@ -38,7 +38,7 @@ python etl_load.py --data-dir ./data --dsn "host=127.0.0.1 dbname=fraudguard use
 ## Files
 
 - sql/01_schema.sql - schema, constraints first, trigger + stored proc + view
-- sql/02_seed_data.sql - seed data, INSERT statements, ~100+ rows per table
+- sql/02_seed_data.sql - seed data, INSERT statements (dims ~100 rows, 2k transactions)
 - sql/03_queries.sql - 1 example query done, 7 stubs with specs
 - app/ - flask app (backend + frontend)
 - etl_load.py - loads the real kaggle dataset at scale
