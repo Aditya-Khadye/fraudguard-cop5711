@@ -64,6 +64,9 @@ def review(alert_id):
             with conn.cursor() as cur:
                 cur.execute("CALL review_alert(%s, %s, %s)", (alert_id, reviewer, decision))
     except psycopg2.Error as e:
+        # stale click (auto-refresh race): alert was already reviewed, just go back
+        if "already reviewed" in str(e):
+            return redirect(request.referrer or "/")
         return f"error: {e.pgerror or e}", 400
     return redirect(request.referrer or "/")
 
