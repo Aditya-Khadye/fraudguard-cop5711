@@ -3,6 +3,7 @@
 <head>
 <title>FraudGuard</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+{% if request.args.get('live') %}<meta http-equiv="refresh" content="4">{% endif %}
 <style>
   :root {
     --navy: #1F3A5F; --red: #A6192E; --bg: #F2F4F7;
@@ -60,7 +61,7 @@
 </head>
 <body>
 <header>
-  <h1>FraudGuard</h1>
+  <h1>FraudGuard{% if request.args.get('live') %} <span style="font-size:12px; vertical-align:middle; background:#A6192E; padding:2px 8px; border-radius:10px;">LIVE</span>{% endif %}</h1>
   <p>Card transaction monitoring &middot; alerts open automatically by trigger, reviews run through the review_alert() stored procedure</p>
 </header>
 <main>

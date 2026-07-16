@@ -22,6 +22,11 @@ python app/app.py
 
 Runs at http://127.0.0.1:5001. Flask backend + plain html frontend: monthly fraud summary table and the alert review queue. The confirm/dismiss buttons call the review_alert() stored procedure, and /api/monthly_summary is the json endpoint. If your postgres login differs, set FRAUDGUARD_DSN (default assumes user postgres / password postgres locally).
 
+## Live demo
+
+Terminal 1: `python3 app/app.py` and open http://127.0.0.1:5001/?live=1 (auto-refreshes every 4s).
+Terminal 2: `python3 demo_live.py` - inserts a new transaction every 2s, some fraudulent. Watch alerts appear in the queue on their own (that's the trigger), then confirm/dismiss them live (that's the stored procedure). Reload sql/02_seed_data.sql afterwards to reset.
+
 ## Analytical queries
 
 sql/03_queries.sql - needs 6-8 total, each one complex (joins, nested queries, window functions, views), monthly report / business process style. No plain summary stats, prof was explicit about that. Q1 is done as a template (view + window function), Q2-Q8 are stubbed with what each should do.
@@ -41,6 +46,7 @@ python etl_load.py --data-dir ./data --dsn "host=127.0.0.1 dbname=fraudguard use
 - sql/02_seed_data.sql - seed data, INSERT statements (dims ~100 rows, 2k transactions)
 - sql/03_queries.sql - 1 example query done, 7 stubs with specs
 - app/ - flask app (backend + frontend)
+- demo_live.py - feeds live transactions for demos
 - etl_load.py - loads the real kaggle dataset at scale
 - FraudGuard_Project_Proposal.docx - the proposal
 - er_diagram.png / er.dot - schema diagram
