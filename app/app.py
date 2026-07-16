@@ -65,7 +65,7 @@ def review(alert_id):
                 cur.execute("CALL review_alert(%s, %s, %s)", (alert_id, reviewer, decision))
     except psycopg2.Error as e:
         return f"error: {e.pgerror or e}", 400
-    return redirect("/")
+    return redirect(request.referrer or "/")
 
 
 if __name__ == "__main__":
