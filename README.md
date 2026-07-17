@@ -55,4 +55,3 @@ python etl_load.py --data-dir ./data --dsn "host=127.0.0.1 dbname=fraudguard use
 
 - finish Q2-Q8 in sql/03_queries.sql (complex, report-style)
 - distributed writeup: which tables get sharded (transaction, by merchant_state or hash), which stay small and replicated everywhere (merchant_category, merchant), and why
-- normalization quiz is up on webcourses
