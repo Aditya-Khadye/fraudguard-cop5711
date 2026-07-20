@@ -18,7 +18,7 @@ What it does
    so you are not loading all ~24M rows for a course project.
 3. Normalizes the merchant fields out of each transaction into their own
    merchant and merchant_category tables (moves the schema toward 3NF).
-4. Raises a fraud_alert row for every transaction flagged Is Fraud = Yes.
+4. Loads into the canonical schema in sql/01_schema.sql. The database trigger creates one fraud_alert for every flagged transaction.
 5. Bulk-loads everything with COPY, in foreign-key-safe order.
 
 Credentials
@@ -43,6 +43,7 @@ import argparse
 import io
 import os
 import sys
+from pathlib import Path
 import numpy as np
 import pandas as pd
 
@@ -172,11 +173,11 @@ def load_cards(path: str) -> tuple[pd.DataFrame, dict]:
     out["card_id"] = np.arange(1, len(src) + 1, dtype=np.int64)
     out["customer_id"] = to_int(src["User"])
     out["card_index"] = to_int(src["CARD INDEX"])
-    out["card_brand"] = src["Card Brand"]
-    out["card_type"] = src["Card Type"]
+    out["card_brand"] = src["Card Brand"].replace("", "Unknown")
+    out["card_type"] = src["Card Type"].replace("", "Credit")
     out["card_number_masked"] = src["Card Number"].astype(str).str[-4:].radd("****")
     out["expires"] = src["Expires"]
-    out["has_chip"] = yesno(src["Has Chip"])
+    out["has_chip"] = yesno(src["Has Chip"]).fillna("f")
     out["cards_issued"] = to_int(src["Cards Issued"])
     out["credit_limit"] = money(src["Credit Limit"])
     out["acct_open_date"] = src["Acct Open Date"]
@@ -213,7 +214,8 @@ def build_from_transactions(txn: pd.DataFrame, card_map: dict):
         txn[c] = txn[c].astype(str).str.strip().replace("nan", "")
 
     # merchant_category
-    mcc_vals = pd.to_numeric(txn["MCC"].replace("", np.nan), errors="coerce").dropna().astype(int)
+    txn["MCC"] = pd.to_numeric(txn["MCC"].replace("", np.nan), errors="coerce").fillna(9999).astype(int).astype(str)
+    mcc_vals = pd.to_numeric(txn["MCC"], errors="coerce").astype(int)
     mcat = pd.DataFrame({"mcc": sorted(mcc_vals.unique())})
     mcat["category_description"] = mcat["mcc"].map(
         lambda c: MCC_DESCRIPTIONS.get(int(c), f"MCC {int(c)}"))
@@ -224,7 +226,7 @@ def build_from_transactions(txn: pd.DataFrame, card_map: dict):
     txn = txn.merge(merch, on=mkeys, how="left")
     merch_out = pd.DataFrame({
         "merchant_id": merch["merchant_id"],
-        "merchant_name": merch["Merchant Name"].replace("", np.nan),
+        "merchant_name": merch["Merchant Name"].replace("", "Unknown Merchant"),
         "merchant_city": merch["Merchant City"].replace("", np.nan),
         "merchant_state": merch["Merchant State"].replace("", np.nan),
         "zip": merch["Zip"].replace("", np.nan),
@@ -245,11 +247,13 @@ def build_from_transactions(txn: pd.DataFrame, card_map: dict):
     tx_out["is_fraud"] = yesno(txn["Is Fraud?"])
     tx_out["error_flag"] = nonempty_bool(txn["Errors?"]) if "Errors?" in txn.columns else "f"
 
-    # drop transactions whose card could not be resolved (only happens with the
-    # Box transactions-only file when no cards file was provided)
-    resolved = tx_out["card_id"].notna()
-    dropped = int((~resolved).sum())
-    tx_out = tx_out[resolved].copy()
+    # Enforce the canonical schema before COPY. Invalid source rows are excluded
+    # and reported rather than weakening database constraints.
+    valid = (tx_out["card_id"].notna() & tx_out["merchant_id"].notna()
+             & tx_out["txn_timestamp"].notna() & tx_out["amount"].notna()
+             & (tx_out["amount"] != 0) & tx_out["is_fraud"].notna())
+    dropped = int((~valid).sum())
+    tx_out = tx_out[valid].copy()
     tx_out["card_id"] = tx_out["card_id"].astype("Int64")
 
     # fraud_alert: one open alert per flagged transaction
@@ -266,70 +270,22 @@ def build_from_transactions(txn: pd.DataFrame, card_map: dict):
 # ----------------------------------------------------------------------------
 # Database
 # ----------------------------------------------------------------------------
-DDL = """
-CREATE TABLE merchant_category (
-    mcc                  INTEGER PRIMARY KEY,
-    category_description TEXT
-);
-CREATE TABLE customer (
-    customer_id       INTEGER PRIMARY KEY,
-    current_age       INTEGER, retirement_age INTEGER,
-    birth_year        INTEGER, birth_month    INTEGER,
-    gender            TEXT, address TEXT, city TEXT, state TEXT, zipcode TEXT,
-    latitude          NUMERIC(9,6), longitude NUMERIC(9,6),
-    per_capita_income NUMERIC(14,2), yearly_income NUMERIC(14,2), total_debt NUMERIC(14,2),
-    fico_score        INTEGER, num_credit_cards INTEGER
-);
-CREATE TABLE card (
-    card_id            INTEGER PRIMARY KEY,
-    customer_id        INTEGER NOT NULL REFERENCES customer(customer_id),
-    card_index         INTEGER,
-    card_brand         TEXT, card_type TEXT, card_number_masked TEXT,
-    expires            TEXT, has_chip BOOLEAN, cards_issued INTEGER,
-    credit_limit       NUMERIC(14,2), acct_open_date TEXT,
-    UNIQUE (customer_id, card_index)
-);
-CREATE TABLE merchant (
-    merchant_id    INTEGER PRIMARY KEY,
-    merchant_name  TEXT, merchant_city TEXT, merchant_state TEXT, zip TEXT,
-    mcc            INTEGER REFERENCES merchant_category(mcc)
-);
-CREATE TABLE transaction (
-    transaction_id BIGINT PRIMARY KEY,
-    card_id        INTEGER NOT NULL REFERENCES card(card_id),
-    merchant_id    INTEGER NOT NULL REFERENCES merchant(merchant_id),
-    txn_timestamp  TIMESTAMP,
-    amount         NUMERIC(12,2),
-    use_chip       TEXT,
-    is_fraud       BOOLEAN,
-    error_flag     BOOLEAN
-);
-CREATE TABLE fraud_alert (
-    alert_id       BIGSERIAL PRIMARY KEY,
-    transaction_id BIGINT NOT NULL REFERENCES transaction(transaction_id),
-    alert_status   TEXT DEFAULT 'OPEN',
-    reviewed_by    TEXT,
-    created_at     TIMESTAMP
-);
-CREATE INDEX idx_txn_card     ON transaction(card_id);
-CREATE INDEX idx_txn_merchant ON transaction(merchant_id);
-CREATE INDEX idx_txn_time     ON transaction(txn_timestamp);
-CREATE INDEX idx_txn_fraud    ON transaction(is_fraud);
-CREATE INDEX idx_merch_state  ON merchant(merchant_state);
-CREATE INDEX idx_merch_mcc    ON merchant(mcc);
-"""
+SCHEMA_PATH = Path(__file__).resolve().parent / "sql" / "01_schema.sql"
 
-DROP = """
-DROP TABLE IF EXISTS fraud_alert CASCADE;
-DROP TABLE IF EXISTS transaction CASCADE;
-DROP TABLE IF EXISTS merchant CASCADE;
-DROP TABLE IF EXISTS merchant_category CASCADE;
-DROP TABLE IF EXISTS card CASCADE;
-DROP TABLE IF EXISTS customer CASCADE;
-"""
+CUSTOMER_COLUMNS = [
+    "customer_id", "current_age", "gender", "city", "state", "zipcode",
+    "latitude", "longitude", "yearly_income", "total_debt", "fico_score",
+]
+CARD_COLUMNS = [
+    "card_id", "customer_id", "card_index", "card_brand", "card_type",
+    "card_number_masked", "expires", "has_chip", "credit_limit",
+]
 
 
 def copy_df(conn, df: pd.DataFrame, table: str, columns: list[str]) -> None:
+    missing = [c for c in columns if c not in df.columns]
+    if missing:
+        raise ValueError(f"{table} is missing required columns: {missing}")
     buf = io.StringIO()
     df.to_csv(buf, index=False, header=False, columns=columns, na_rep="")
     buf.seek(0)
@@ -340,27 +296,39 @@ def copy_df(conn, df: pd.DataFrame, table: str, columns: list[str]) -> None:
         )
 
 
-def load_to_db(dsn, reset, mcat, cust, card, merch, tx, alerts):
+def load_to_db(dsn, reset, mcat, cust, card, merch, tx):
+    """Load the normalized frames into the graded schema.
+
+    On --reset the exact sql/01_schema.sql file is executed so the ETL, app, and
+    graded deliverable cannot silently drift apart. COPY FROM fires the
+    transaction trigger, so fraud_alert rows are created by the database and are
+    intentionally not loaded separately.
+    """
     import psycopg2
     conn = psycopg2.connect(dsn) if dsn else psycopg2.connect()
     try:
-        with conn:
+        if reset:
+            schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute(schema_sql)
+        else:
             with conn.cursor() as cur:
-                if reset:
-                    cur.execute(DROP)
-                cur.execute(DDL)
-        with conn:  # single transaction for the whole load
+                cur.execute("SELECT to_regclass('public.transaction')")
+                if cur.fetchone()[0] is None:
+                    raise RuntimeError(
+                        "FraudGuard schema is missing. Run with --reset or execute sql/01_schema.sql first."
+                    )
+
+        with conn:  # one transaction keeps the load atomic
             copy_df(conn, mcat, "merchant_category", ["mcc", "category_description"])
-            copy_df(conn, cust, "customer", list(cust.columns))
-            copy_df(conn, card, "card", list(card.columns))
+            copy_df(conn, cust, "customer", CUSTOMER_COLUMNS)
+            copy_df(conn, card, "card", CARD_COLUMNS)
             copy_df(conn, merch, "merchant",
                     ["merchant_id", "merchant_name", "merchant_city", "merchant_state", "zip", "mcc"])
             copy_df(conn, tx, "transaction",
                     ["transaction_id", "card_id", "merchant_id", "txn_timestamp",
                      "amount", "use_chip", "is_fraud", "error_flag"])
-            if len(alerts):
-                copy_df(conn, alerts, "fraud_alert",
-                        ["transaction_id", "alert_status", "reviewed_by", "created_at"])
             with conn.cursor() as cur:
                 cur.execute("ANALYZE;")
     finally:
@@ -401,6 +369,15 @@ def main():
         cust = pd.DataFrame(columns=["customer_id"])  # filled from transactions below
     if have_cards:
         card, card_map = load_cards(cards_path)
+        if not have_users:
+            cust = pd.DataFrame({
+                "customer_id": sorted(card["customer_id"].dropna().astype(int).unique())
+            })
+            for col in ["current_age", "retirement_age", "birth_year", "birth_month", "gender",
+                        "address", "city", "state", "zipcode", "latitude", "longitude",
+                        "per_capita_income", "yearly_income", "total_debt", "fico_score",
+                        "num_credit_cards"]:
+                cust[col] = np.nan
     else:
         card, card_map = pd.DataFrame(), {}
 
@@ -417,9 +394,10 @@ def main():
                     for u, ci, cid in zip(pairs["customer_id"], pairs["card_index"], pairs["card_id"])}
         card = pd.DataFrame({"card_id": pairs["card_id"], "customer_id": pairs["customer_id"].astype(int),
                              "card_index": pairs["card_index"].astype(int),
-                             "card_brand": np.nan, "card_type": np.nan, "card_number_masked": np.nan,
-                             "expires": np.nan, "has_chip": np.nan, "cards_issued": pd.NA,
-                             "credit_limit": np.nan, "acct_open_date": np.nan})
+                             "card_brand": "Unknown", "card_type": "Credit",
+                             "card_number_masked": "********", "expires": np.nan,
+                             "has_chip": "f", "cards_issued": pd.NA,
+                             "credit_limit": 0.0, "acct_open_date": np.nan})
         if not have_users:
             cust = pd.DataFrame({"customer_id": sorted(pairs["customer_id"].astype(int).unique())})
             for col in ["current_age", "retirement_age", "birth_year", "birth_month", "gender",
@@ -431,7 +409,7 @@ def main():
     print("[3/4] Normalizing merchants and building tables")
     mcat, merch, tx, alerts, dropped = build_from_transactions(txn, card_map)
     if dropped:
-        print(f"      Note: dropped {dropped:,} transactions with unresolvable card_id")
+        print(f"      Note: dropped {dropped:,} transactions that violated required load fields")
 
     print("      Row counts:")
     for name, frame in [("merchant_category", mcat), ("customer", cust), ("card", card),
@@ -445,7 +423,7 @@ def main():
         return
 
     print("[4/4] Loading into PostgreSQL ...")
-    load_to_db(args.dsn, args.reset, mcat, cust, card, merch, tx, alerts)
+    load_to_db(args.dsn, args.reset, mcat, cust, card, merch, tx)
     print("      Done. Tables loaded.")
 
 

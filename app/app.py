@@ -24,8 +24,9 @@ def dashboard():
     stats = query("""
         SELECT COUNT(*) AS txns,
                COUNT(*) FILTER (WHERE is_fraud) AS fraud,
-               ROUND(100.0 * COUNT(*) FILTER (WHERE is_fraud) / COUNT(*), 1) AS fraud_pct,
-               SUM(amount) AS volume,
+               COALESCE(ROUND(100.0 * COUNT(*) FILTER (WHERE is_fraud)
+                    / NULLIF(COUNT(*), 0), 1), 0) AS fraud_pct,
+               COALESCE(SUM(amount), 0) AS volume,
                (SELECT COUNT(*) FROM fraud_alert WHERE alert_status = 'OPEN') AS open_alerts
         FROM transaction
     """)[0]
@@ -44,6 +45,7 @@ def dashboard():
         JOIN card cd ON cd.card_id = t.card_id
         JOIN customer c ON c.customer_id = cd.customer_id
         ORDER BY (a.alert_status = 'OPEN') DESC, a.created_at DESC
+        LIMIT 100
     """)
     return render_template("index.html", stats=stats, monthly=monthly, alerts=alerts)
 
