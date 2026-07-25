@@ -52,6 +52,7 @@ python etl_load.py --data-dir ./data --dsn "host=127.0.0.1 dbname=fraudguard use
 - FraudGuard_Project_Proposal.docx - the proposal
 - er_diagram.png / er.dot - schema diagram
 
-## TODO (updated after the 7/13 progress check)
+## TODO
 
-- finish Q2-Q8 in sql/03_queries.sql (complex, report-style)
+- 2pc distributed transaction demo
+- slide deck + demo video for thursday
