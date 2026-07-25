@@ -48,10 +48,10 @@ python etl_load.py --data-dir ./data --dsn "host=127.0.0.1 dbname=fraudguard use
 - app/ - flask app (backend + frontend)
 - demo_live.py - feeds live transactions for demos
 - etl_load.py - loads the real kaggle dataset at scale
+- distribution_writeup.md - sharding/replication plan (conceptual)
 - FraudGuard_Project_Proposal.docx - the proposal
 - er_diagram.png / er.dot - schema diagram
 
 ## TODO (updated after the 7/13 progress check)
 
 - finish Q2-Q8 in sql/03_queries.sql (complex, report-style)
-- distributed writeup: which tables get sharded (transaction, by merchant_state or hash), which stay small and replicated everywhere (merchant_category, merchant), and why
