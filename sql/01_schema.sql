@@ -69,9 +69,10 @@ CREATE TABLE fraud_alert (
     alert_status   TEXT NOT NULL DEFAULT 'OPEN'
                    CHECK (alert_status IN ('OPEN','CONFIRMED','DISMISSED')),
     reviewed_by    TEXT,
+    reviewed_at    TIMESTAMP,
     created_at     TIMESTAMP NOT NULL DEFAULT now(),
-    -- a reviewed alert must say who reviewed it
-    CONSTRAINT chk_review CHECK (alert_status = 'OPEN' OR reviewed_by IS NOT NULL)
+    -- a reviewed alert must say who reviewed it and when
+    CONSTRAINT chk_review CHECK (alert_status = 'OPEN' OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL))
 );
 
 CREATE INDEX idx_txn_card     ON transaction(card_id);
@@ -103,7 +104,7 @@ BEGIN
         RAISE EXCEPTION 'decision must be CONFIRMED or DISMISSED';
     END IF;
     UPDATE fraud_alert
-       SET alert_status = p_decision, reviewed_by = p_reviewer
+       SET alert_status = p_decision, reviewed_by = p_reviewer, reviewed_at = now()
      WHERE alert_id = p_alert_id AND alert_status = 'OPEN';
     IF NOT FOUND THEN
         RAISE EXCEPTION 'alert % not found or already reviewed', p_alert_id;

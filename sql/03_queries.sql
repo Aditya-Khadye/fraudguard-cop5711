@@ -99,12 +99,7 @@ SELECT
     MAX(t.amount)                                   AS max_amount,
     ROUND(
         AVG(
-            EXTRACT(EPOCH FROM (
-                CASE WHEN fa.alert_status != 'OPEN'
-                     THEN now() - fa.created_at
-                     ELSE NULL
-                END
-            )) / 3600
+            EXTRACT(EPOCH FROM (fa.reviewed_at - fa.created_at)) / 3600
         ), 2
     ) AS avg_hours_to_review,
     COUNT(*) FILTER (WHERE t.error_flag)            AS alerts_with_errors
