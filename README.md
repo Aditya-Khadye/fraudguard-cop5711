@@ -40,6 +40,10 @@ pip install -r requirements.txt
 python etl_load.py --data-dir ./data --dsn "host=127.0.0.1 dbname=fraudguard user=postgres" --reset --sample-size 200000
 ```
 
+## Performance testing
+
+performance_test.py benchmarks the analytical queries with and without indexes and saves EXPLAIN plans + results to performance_results/. See HARDIK_DELIVERABLE.md and DISTRIBUTED_DESIGN.md for the validation and distributed design notes.
+
 ## Files
 
 - sql/01_schema.sql - schema, constraints first, trigger + stored proc + view
@@ -49,6 +53,8 @@ python etl_load.py --data-dir ./data --dsn "host=127.0.0.1 dbname=fraudguard use
 - demo_live.py - feeds live transactions for demos
 - etl_load.py - loads the real kaggle dataset at scale
 - distribution_writeup.md - sharding/replication plan (conceptual)
+- DISTRIBUTED_DESIGN.md / HARDIK_DELIVERABLE.md - distributed design + validation notes
+- performance_test.py / performance_results/ - query benchmarks and explain plans
 - FraudGuard_Project_Proposal.docx - the proposal
 - er_diagram.png / er.dot - schema diagram
 
